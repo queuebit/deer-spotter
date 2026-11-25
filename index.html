@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0f1215">
+<title>Deer Spotter Live</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Overpass:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+/* VOICE: plain, practical in-car tool; experimental, not a safety device
+   IDEA: a dashcam monitor in the lettering of highway signs
+   PICTURE: the live camera with detection boxes; full-screen flash on alert
+   COLOUR and TYPE: night only (used in a dark car): asphalt ground, sign-white ink, cyan eye pairs, red motion; Overpass
+   LAYOUT: camera first, big controls under it, event log with snapshots below */
+:root{color-scheme:dark;--bg:#0f1215;--panel:#181c21;--ink:#e9ecef;--mute:#98a2ab;--line:#2b3138;--eye:#62d8ff;--mot:#ff6a55}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Overpass,system-ui,sans-serif;overflow-x:clip;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+.band{padding:16px max(4vw,14px);max-width:1100px;margin:0 auto}
+h1{font-size:30px;line-height:1.05;margin:0 0 4px;font-weight:800}
+h2{font-size:22px;margin:0;font-weight:800}
+.lead{margin:0;color:var(--mute);font-size:14px}
+.vwrap{position:relative;aspect-ratio:16/9;background:#000;border-radius:10px;overflow:hidden}
+.vwrap video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+#ov{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.empty{position:absolute;inset:0;display:grid;place-items:center;color:var(--mute);text-align:center;padding:20px}
+.empty[hidden]{display:none}
+.live{font-size:14px;color:var(--mute);margin:8px 0 0;font-variant-numeric:tabular-nums}
+.big{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;margin-top:12px}
+button{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:0 16px;border-radius:10px;font:700 17px Overpass,system-ui,sans-serif;border:1px solid var(--ink);background:var(--ink);color:var(--bg);cursor:pointer}
+button.ghost{background:transparent;color:var(--ink);border-color:var(--line)}
+button.see{background:var(--eye);border-color:var(--eye);color:#0f1215}
+button:disabled{opacity:.4}
+button:focus-visible,input:focus-visible{outline:3px solid var(--eye);outline-offset:2px}
+.set{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;margin-top:12px}
+.set summary{font-weight:800;cursor:pointer;min-height:32px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:12px 20px;margin-top:10px}
+.sl label{display:flex;justify-content:space-between;font-size:14px;font-weight:600}
+.sl output{color:var(--mute);font-variant-numeric:tabular-nums}
+.sl input{width:100%;accent-color:var(--eye);height:28px}
+.chk{display:flex;gap:8px;align-items:center;font-size:14px;font-weight:600;min-height:32px}
+.chk input{width:22px;height:22px;accent-color:var(--eye)}
+.hint{font-size:13px;color:var(--mute);margin:10px 0 0}
+.loghead{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between;border-top:2px solid var(--ink);padding-top:14px}
+#stats{font-size:14px;color:var(--mute);flex:1}
+#stats b{color:var(--ink)}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+#csv{width:100%;margin-top:12px;font:13px ui-monospace,monospace;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px}
+#list{list-style:none;margin:14px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,320px),1fr));gap:10px}
+.ev{display:grid;grid-template-columns:130px minmax(0,1fr);gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px;align-items:start}
+.ev.deer{border-color:var(--eye);box-shadow:inset 0 0 0 1px var(--eye)}
+.ev.no{opacity:.55}
+.ev img{display:block;width:130px;height:auto;border-radius:6px;background:#000}
+.row1{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.tag{font-size:13px;font-weight:800;padding:1px 8px;border-radius:99px;color:#0f1215;background:var(--eye)}
+.tag.Motion{background:var(--mot);color:#fff}.tag.Manual{background:var(--ink)}
+.tm{font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}
+.sub{font-size:13px;color:var(--mute);margin:2px 0 6px}
+.lb{display:flex;gap:6px;flex-wrap:wrap}
+.lb button{min-height:36px;padding:0 10px;font-size:14px;background:transparent;color:var(--ink);border-color:var(--line)}
+.lb button[aria-pressed=true]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.none{color:var(--mute)}
+#flash{position:fixed;inset:0;pointer-events:none;border:14px solid var(--eye);opacity:0;transition:opacity .5s}
+#flash.on{opacity:1;transition:none}
+#flash.Motion{border-color:var(--mot)}
+#dim{position:fixed;inset:0;background:#000;display:none;z-index:5;align-items:end;justify-content:center;padding:24px;color:#444;font-size:14px}
+#dim.on{display:flex}
+#dimMsg{position:fixed;top:40%;left:0;right:0;text-align:center;font-size:56px;font-weight:800;color:var(--eye);z-index:6;opacity:0;pointer-events:none;transition:opacity .6s}
+#dimMsg.on{opacity:1;transition:none}
+@media (prefers-reduced-motion:reduce){#flash,#dimMsg{transition:none}}
+</style></head><body>
+<header class="band">
+<h1>Deer spotter live</h1>
+<p class="lead">Experimental. It beeps when it sees a matched pair of bright dots (possible eyeshine) along the road edges. Expect misses and false alarms. Keep driving as you normally would.</p>
+</header>
+<main class="band" style="padding-top:0">
+<div class="vwrap" id="wrap"><video id="vid" playsinline muted autoplay></video><canvas id="ov"></canvas><div id="empty" class="empty">Press Start and allow the camera</div></div>
+<p class="live" id="live">Camera off</p>
+<div class="big"><button id="start">Start</button><button id="see" class="see" disabled>I see a deer</button></div>
+<div class="big"><button id="dimBtn" class="ghost" disabled>Dark screen</button><button id="test" class="ghost">Test beep</button></div>
+<details class="set"><summary>Settings</summary>
+<div class="grid">
+<div class="sl"><label for="thr">Brightness threshold <output id="thrV"></output></label><input type="range" id="thr" min="120" max="255" value="215"></div>
+<div class="sl"><label for="maxA">Largest dot size <output id="maxAV"></output></label><input type="range" id="maxA" min="2" max="120" value="30"></div>
+<div class="sl"><label for="top">Ignore top of frame <output id="topV"></output></label><input type="range" id="top" min="0" max="60" value="30"></div>
+<div class="sl"><label for="bot">Ignore bottom of frame <output id="botV"></output></label><input type="range" id="bot" min="0" max="50" value="20"></div>
+<div class="sl"><label for="k">Motion threshold <output id="kV"></output></label><input type="range" id="k" min="2" max="12" step="0.5" value="6"></div>
+<div class="sl"><label for="vol">Beep volume <output id="volV"></output></label><input type="range" id="vol" min="0" max="100" value="80"></div>
+<label class="chk"><input type="checkbox" id="alEyes" checked> Alert on eye pairs</label>
+<label class="chk"><input type="checkbox" id="alMot"> Alert on sudden motion (noisy while driving)</label>
+</div>
+<p class="hint">Dashed lines mark the watched band; aim it at the road and shoulders. Cyan boxes are eye pairs, red boxes are sudden changes. Raise the brightness threshold if reflectors keep triggering it.</p>
+</details>
+</main>
+<section class="band">
+<div class="loghead"><h2>Events</h2><div id="stats"></div><div class="btns"><button id="copy" class="ghost">Copy CSV</button><button id="clear" class="ghost">Clear</button></div></div>
+<textarea id="csv" hidden rows="6" aria-label="Events as CSV"></textarea>
+<ul id="list"></ul>
+<p class="none" id="none">No events yet.</p>
+</section>
+<div id="flash"></div>
+<div id="dim">Tap anywhere to show the camera</div>
+<div id="dimMsg">DEER?</div>
+<script>
+{
+const $=id=>document.getElementById(id);
+const vid=$('vid'),ov=$('ov'),octx=ov.getContext('2d');
+const work=document.createElement('canvas'),wctx=work.getContext('2d',{willReadFrequently:true});
+const tc=document.createElement('canvas'),tctx=tc.getContext('2d');
+const S={thr:215,maxA:30,top:30,bot:20,k:6,vol:80,floor:12};
+let events=[],prevCells=null,prevHot=[],pairHist=[],actx=null,W=320,H=180,stream=null,wake=null,t0=0,nextId=1,lastAlert=0,running=false;
+const EYE='#62d8ff',MOT='#ff6a55';
+['thr','maxA','top','bot','k','vol'].forEach(n=>{const el=$(n),out=$(n+'V');const set=()=>{S[n]=+el.value;out.textContent=el.value+(n==='top'||n==='bot'||n==='vol'?'%':n==='maxA'?' px':'')};el.addEventListener('input',set);set();});
+const now=()=>(performance.now()-t0)/1000;
+const fmt=t=>{const m=Math.floor(t/60),s=(t%60).toFixed(1).padStart(4,'0');return m+':'+s};
+const clock=()=>new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit',second:'2-digit'});
+function sizeOv(){const r=ov.getBoundingClientRect();ov.width=Math.max(1,Math.round(r.width*devicePixelRatio));ov.height=Math.max(1,Math.round(r.height*devicePixelRatio));}
+const ro=new ResizeObserver(sizeOv);ro.observe(ov);
+function audio(){if(!actx){try{actx=new (window.AudioContext||window.webkitAudioContext)()}catch(e){actx=null}}if(actx&&actx.state!=='running')actx.resume().catch(()=>{});}
+function tone(f,at,len){const o=actx.createOscillator(),g=actx.createGain(),v=Math.max(.001,S.vol/100*.6);o.type='square';o.frequency.value=f;g.gain.setValueAtTime(v,at);g.gain.exponentialRampToValueAtTime(.001,at+len);o.connect(g).connect(actx.destination);o.start(at);o.stop(at+len+.02);}
+function beep(type){if(!actx)return;try{const t=actx.currentTime;if(type==='Motion'){tone(520,t,.25)}else{tone(1400,t,.12);tone(1400,t+.18,.12);tone(1400,t+.36,.12)}}catch(e){}}
+function flash(type){const f=$('flash');f.className='on '+type;setTimeout(()=>{f.className=type},120);const m=$('dimMsg');if($('dim').classList.contains('on')){m.classList.add('on');setTimeout(()=>m.classList.remove('on'),1200)}}
+$('test').addEventListener('click',()=>{audio();beep('Eyes');flash('Eyes');});
+async function keepAwake(){try{if('wakeLock' in navigator){wake=await navigator.wakeLock.request('screen');}}catch(e){wake=null}}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&running)keepAwake();});
+$('start').addEventListener('click',async()=>{
+  audio();
+  if(running){stop();return;}
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){$('live').textContent='This browser cannot use the camera here. Open the page in Safari from an https address.';return;}
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720},frameRate:{ideal:30}}});
+  }catch(e){$('live').textContent='Camera blocked: '+(e.name||'error')+'. Allow camera access for this site in Safari settings.';return;}
+  vid.srcObject=stream;
+  try{await vid.play()}catch(e){}
+  running=true;t0=performance.now();prevCells=null;pairHist=[];prevHot=[];
+  $('start').textContent='Stop';$('see').disabled=false;$('dimBtn').disabled=false;$('empty').hidden=true;
+  keepAwake();loop();
+});
+function stop(){running=false;if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;vid.srcObject=null;if(wake){wake.release().catch(()=>{});wake=null}
+  $('start').textContent='Start';$('see').disabled=true;$('dimBtn').disabled=true;$('empty').hidden=false;$('live').textContent='Camera off';octx.clearRect(0,0,ov.width,ov.height);}
+vid.addEventListener('loadedmetadata',()=>{const vw=vid.videoWidth||16,vh=vid.videoHeight||9;W=320;H=Math.max(60,Math.round(320*vh/vw));work.width=W;work.height=H;$('wrap').style.aspectRatio=vw+'/'+vh;sizeOv();});
+$('dimBtn').addEventListener('click',()=>$('dim').classList.add('on'));
+$('dim').addEventListener('click',()=>$('dim').classList.remove('on'));
+function loop(){if(!running)return;if(vid.readyState>=2&&vid.videoWidth)frame();if(vid.requestVideoFrameCallback)vid.requestVideoFrameCallback(loop);else requestAnimationFrame(loop);}
+function thumb(x,y,w,h,col){const tw=260,th=Math.round(260*H/W);tc.width=tw;tc.height=th;tctx.drawImage(vid,0,0,tw,th);if(col){const s=tw/W;tctx.strokeStyle=col;tctx.lineWidth=3;tctx.strokeRect((x-w/2)*s-4,(y-h/2)*s-4,w*s+8,h*s+8);}try{return tc.toDataURL('image/jpeg',.65)}catch(e){return ''}}
+function addEvent(type,x,y,w,h,s){
+  const t=now();
+  const last=type==='Manual'?null:events.find(e=>e.type===type&&t-e.end<1.5&&Math.hypot(e.x-x,e.y-y)<60);
+  if(last){last.n++;last.s=Math.max(last.s,s);last.end=t;return false;}
+  events.unshift({id:nextId++,type,t,end:t,clock:clock(),x,y,s,n:1,label:type==='Manual'?'deer':'',img:thumb(x,y,w,h,type==='Eyes'?EYE:type==='Motion'?MOT:'')});
+  events.slice(100).forEach(e=>{e.img=''});
+  const want=(type==='Eyes'&&$('alEyes').checked)||(type==='Motion'&&$('alMot').checked);
+  if(want&&t-lastAlert>2){lastAlert=t;beep(type);flash(type);}
+  return true;
+}
+$('see').addEventListener('click',()=>{addEvent('Manual',W/2,H/2,0,0,0);render();});
+function frame(){
+  wctx.drawImage(vid,0,0,W,H);
+  const y0=Math.round(H*S.top/100),y1=Math.round(H*(1-S.bot/100)),h=y1-y0;if(h<10)return;
+  const d=wctx.getImageData(0,y0,W,h).data,n=W*h,Y=new Uint8Array(n);
+  for(let i=0,j=0;i<n;i++,j+=4)Y[i]=(d[j]*77+d[j+1]*150+d[j+2]*29)>>8;
+  const seen=new Uint8Array(n),blobs=[];
+  for(let i=0;i<n;i++){
+    if(Y[i]<S.thr||seen[i])continue;
+    const st=[i];seen[i]=1;let a=0,sx=0,sy=0;
+    while(st.length){const p=st.pop(),x=p%W,yy=(p/W)|0;a++;sx+=x;sy+=yy;
+      if(x>0&&!seen[p-1]&&Y[p-1]>=S.thr){seen[p-1]=1;st.push(p-1)}
+      if(x<W-1&&!seen[p+1]&&Y[p+1]>=S.thr){seen[p+1]=1;st.push(p+1)}
+      if(yy>0&&!seen[p-W]&&Y[p-W]>=S.thr){seen[p-W]=1;st.push(p-W)}
+      if(yy<h-1&&!seen[p+W]&&Y[p+W]>=S.thr){seen[p+W]=1;st.push(p+W)}}
+    if(a<=S.maxA)blobs.push({x:sx/a,y:sy/a+y0,a});
+  }
+  const pairs=[];
+  if(blobs.length<=40)for(let i=0;i<blobs.length;i++)for(let j=i+1;j<blobs.length;j++){
+    const A=blobs[i],B=blobs[j],r=Math.sqrt((A.a+B.a)/2/Math.PI)+.5;
+    const dx=Math.abs(A.x-B.x),dy=Math.abs(A.y-B.y),ratio=Math.max(A.a,B.a)/Math.min(A.a,B.a);
+    if(dy<=Math.max(1.5,r)&&dx>=2*r&&dx<=Math.min(40,12*r)&&ratio<=3)pairs.push({x:(A.x+B.x)/2,y:(A.y+B.y)/2,w:dx+2*r,h:2*r+2,s:1/ratio});
+  }
+  const conf=pairs.filter(p=>pairHist.some(f=>f.some(q=>Math.abs(q.x-p.x)<10&&Math.abs(q.y-p.y)<8)));
+  pairHist.push(pairs);if(pairHist.length>4)pairHist.shift();
+  const GX=16,GY=8,cw=W/GX,ch=h/GY,cells=new Float32Array(GX*GY),cnt=new Uint16Array(GX*GY);
+  for(let yy=0;yy<h;yy+=2)for(let x=0;x<W;x+=2){const c=Math.min(GY-1,(yy/ch)|0)*GX+Math.min(GX-1,(x/cw)|0);cells[c]+=Y[yy*W+x];cnt[c]++;}
+  for(let c=0;c<cells.length;c++)cells[c]/=cnt[c]||1;
+  const mot=[];let hot=[];
+  if(prevCells){
+    const df=cells.map((v,c)=>Math.abs(v-prevCells[c])),so=Array.from(df).sort((a,b)=>a-b),med=so[so.length>>1],lim=Math.max(S.floor,S.k*med);
+    df.forEach((v,c)=>{if(v>lim)hot.push(c)});
+    if(hot.length>=1&&hot.length<=3)hot.filter(c=>prevHot.some(p=>Math.abs(p%GX-c%GX)<=1&&Math.abs(((p/GX)|0)-((c/GX)|0))<=1)).forEach(c=>mot.push({x:(c%GX+.5)*cw,y:(((c/GX)|0)+.5)*ch+y0,w:cw,h:ch,s:df[c]}));
+    if(hot.length>3)hot=[];
+  }
+  prevCells=cells;prevHot=hot;
+  const sc=ov.width/W,dp=devicePixelRatio;octx.clearRect(0,0,ov.width,ov.height);
+  octx.setLineDash([6*dp,6*dp]);octx.strokeStyle='rgba(255,255,255,.45)';octx.lineWidth=dp;
+  octx.beginPath();octx.moveTo(0,y0*sc);octx.lineTo(ov.width,y0*sc);octx.moveTo(0,y1*sc);octx.lineTo(ov.width,y1*sc);octx.stroke();octx.setLineDash([]);
+  octx.fillStyle='rgba(255,255,255,.7)';blobs.forEach(b=>{octx.beginPath();octx.arc(b.x*sc,b.y*sc,2*dp,0,7);octx.fill()});
+  octx.strokeStyle=EYE;pairs.forEach(p=>{octx.lineWidth=(conf.includes(p)?3:1)*dp;octx.strokeRect((p.x-p.w/2)*sc-3*dp,(p.y-p.h/2)*sc-3*dp,p.w*sc+6*dp,p.h*sc+6*dp)});
+  octx.strokeStyle=MOT;octx.lineWidth=2*dp;mot.forEach(m=>octx.strokeRect((m.x-m.w/2)*sc,(m.y-m.h/2)*sc,m.w*sc,m.h*sc));
+  $('live').textContent='Watching · '+fmt(now())+' · '+blobs.length+' bright dots · '+pairs.length+' pairs'+(blobs.length>40?' (too busy, pairs skipped)':'')+(wake?'':' · screen may sleep');
+  let added=false;
+  conf.forEach(p=>{if(addEvent('Eyes',p.x,p.y,p.w,p.h,p.s))added=true});
+  mot.forEach(m=>{if(addEvent('Motion',m.x,m.y,m.w,m.h,m.s))added=true});
+  if(added)render();
+}
+function render(){
+  const c=t=>events.filter(e=>e.type===t).length,deer=events.filter(e=>e.label==='deer').length;
+  $('stats').innerHTML='<b>'+c('Eyes')+'</b> eye pairs · <b>'+c('Motion')+'</b> motion · <b>'+c('Manual')+'</b> called by you · <b>'+deer+'</b> marked deer';
+  $('none').hidden=events.length>0;
+  $('list').innerHTML=events.slice(0,150).map(e=>'<li class="ev '+e.label+'" data-id="'+e.id+'">'+(e.img?'<img src="'+e.img+'" alt="">':'<div></div>')+'<div><div class="row1"><span class="tag '+e.type+'">'+(e.type==='Manual'?'You':e.type)+'</span><span class="tm">'+e.clock+'</span></div><div class="sub">at '+fmt(e.t)+(e.type==='Manual'?'':' · '+e.n+' frame'+(e.n>1?'s':''))+'</div><div class="lb"><button data-act="deer" aria-pressed="'+(e.label==='deer')+'">Deer</button><button data-act="no" aria-pressed="'+(e.label==='no')+'">Not deer</button></div></div></li>').join('');
+}
+$('list').addEventListener('click',ev=>{const b=ev.target.closest('button');if(!b)return;const li=b.closest('li'),e=events.find(x=>String(x.id)===li.dataset.id);if(!e)return;const v=b.dataset.act==='deer'?'deer':'no';e.label=e.label===v?'':v;render();});
+function csv(){return 'id,type,clock,start_s,end_s,x,y,score,frames,label\n'+events.slice().reverse().map(e=>[e.id,e.type,'"'+e.clock+'"',e.t.toFixed(2),e.end.toFixed(2),e.x.toFixed(0),e.y.toFixed(0),e.s.toFixed(2),e.n,e.label].join(',')).join('\n');}
+$('copy').addEventListener('click',()=>{const c=csv(),t=$('csv');const show=()=>{t.hidden=false;t.value=c;t.select();};
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(c).then(()=>{$('copy').textContent='Copied';setTimeout(()=>{$('copy').textContent='Copy CSV'},1500)},show);else show();});
+$('clear').addEventListener('click',()=>{events=[];$('csv').hidden=true;render();});
+render();
+}
+</script>
+</body></html>
